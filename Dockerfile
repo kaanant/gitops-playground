@@ -1,12 +1,30 @@
-FROM python:3.9
+FROM python:3.9-slim-buster as builder
+
+WORKDIR /build
+
+COPY ./app/requirements.txt /build/requirements.txt
+
+RUN pip install --user --no-cache-dir --upgrade -r /build/requirements.txt
+
+ADD app app
+
+FROM python:3.9-slim-buster as app
 
 WORKDIR /code
 
-COPY ./app/requirements.txt /code/requirements.txt
+RUN rm -rf /var/lib/apt/lists/*
+RUN apt-get -y --purge autoremove && apt-get -y autoclean && apt-get -y clean
 
-RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+COPY --from=builder /build/app /code/app
+COPY --from=builder /root/.local /root/.local
+ENV PATH=/root/.local/bin:$PATH
 
-COPY ./app /code/app
+RUN find /usr/local -depth \
+  \( \
+  \( -type d -a \( -name test -o -name tests -o -name idle_test \) \) \
+  -o \
+  \( -type f -a \( -name '*.pyc' -o -name '*.pyo' \) \) \
+  \) -exec rm -rf '{}' +;
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80"]
 
